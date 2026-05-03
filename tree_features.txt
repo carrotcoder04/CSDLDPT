@@ -1,0 +1,73 @@
+=== DANH SACH DAC TRUNG CAY (62 CHIEU) ===
+
+[COLOR] - 24 chieu:
+   1. color_dom_b1                                  = 0.000143
+   2. color_dom_b2                                  = 0.103030
+   3. color_dom_b3                                  = 0.382073
+   4. color_dom_g1                                  = 0.000147
+   5. color_dom_g2                                  = 0.115241
+   6. color_dom_g3                                  = 0.380952
+   7. color_dom_r1                                  = 0.000215
+   8. color_dom_r2                                  = 0.129055
+   9. color_dom_r3                                  = 0.377591
+  10. color_green_ratio                             = 0.000290
+  11. color_h_mean                                  = 0.285449
+  12. color_h_std                                   = 5.816074
+  13. color_hue_hist_0                              = 1.000000
+  14. color_hue_hist_1                              = 0.003065
+  15. color_hue_hist_2                              = 0.003560
+  16. color_hue_hist_3                              = 0.002988
+  17. color_hue_hist_4                              = 0.003019
+  18. color_hue_hist_5                              = 0.000356
+  19. color_hue_hist_6                              = 0.000000
+  20. color_hue_hist_7                              = 0.000046
+  21. color_s_mean                                  = 1.709290
+  22. color_s_std                                   = 13.117023
+  23. color_v_mean                                  = 1.111496
+  24. color_v_std                                   = 8.076278
+
+[SHAPE] - 12 chieu:
+   1. shape_area_ratio                              = 0.027039
+   2. shape_aspect_ratio                            = 2.319149
+   3. shape_centroid_x_norm                         = 0.251073
+   4. shape_centroid_y_norm                         = 0.509636
+   5. shape_crown_ratio                             = 0.275229
+   6. shape_extent_ratio                            = 0.345891
+   7. shape_hu_0                                    = 0.241453
+   8. shape_hu_1                                    = 0.626567
+   9. shape_hu_2                                    = 1.212469
+  10. shape_hu_3                                    = 1.680436
+  11. shape_solidity                                = 0.563344
+  12. shape_symmetry                                = 0.281230
+
+[TEXTURE] - 17 chieu:
+   1. texture_contrast                              = 2.194327
+   2. texture_correlation                           = 0.621486
+   3. texture_energy                                = 0.927661
+   4. texture_grad_mean                             = 4.945714
+   5. texture_grad_std                              = 29.630057
+   6. texture_homogeneity                           = 0.975921
+   7. texture_lbp_0                                 = 0.008789
+   8. texture_lbp_1                                 = 0.002480
+   9. texture_lbp_2                                 = 0.001395
+  10. texture_lbp_3                                 = 0.000698
+  11. texture_lbp_4                                 = 0.002976
+  12. texture_lbp_5                                 = 0.005022
+  13. texture_lbp_6                                 = 0.001008
+  14. texture_lbp_7                                 = 0.001364
+  15. texture_lbp_8                                 = 0.002108
+  16. texture_lbp_9                                 = 0.974161
+  17. texture_roughness                             = 0.981320
+
+[CANOPY] - 9 chieu:
+   1. canopy_bottom25_ratio                         = 0.000000
+   2. canopy_contour_complexity                     = 7.886079
+   3. canopy_convexity                              = 0.782206
+   4. canopy_max_width_norm                         = 0.398438
+   5. canopy_n_components                           = 1.000000
+   6. canopy_peak_row_norm                          = 0.531250
+   7. canopy_top25_ratio                            = 0.000000
+   8. canopy_width_mean                             = 0.163065
+   9. canopy_width_std                              = 0.121631
+
+Tong cong: 62 dac trung
