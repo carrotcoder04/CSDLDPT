@@ -101,13 +101,18 @@ def build_database(image_dir: str, norm_method: str = "zscore") -> None:
     logger.info(f"Da luu normalizer: {NORM_PATH}")
 
     # ── Bước 3: Xây dựng VectorDatabase (KD-Tree) ────────
-    logger.info("=== BUOC 3: Xay dung VectorDatabase (KD-Tree) ===")
-    db = VectorDatabase(distance="euclidean")
+    logger.info("=== BUOC 3: Xay dung VectorDatabase (KD-Tree) voi Cosine Distance ===")
+    db = VectorDatabase(distance="cosine")
 
     for result, vec_norm in zip(ok_results, vectors_norm):
-        fname = Path(result["image_path"]).stem
-        # Tên loài từ tên file (định dạng "TenLoai_..._tree_1 (N)")
-        label = fname.split("_")[0] if "_" in fname else None
+        path_obj = Path(result["image_path"])
+        parent_name = path_obj.parent.name
+        # Uu tien lay ten loai tu ten thu muc (VD: "6_Maple_Tree")
+        if parent_name and parent_name not in ("res", "tree", "batch"):
+            label = parent_name
+        else:
+            fname = path_obj.stem
+            label = fname.split("_")[0] if "_" in fname else None
         db.insert(
             image_path=result["image_path"],
             vector=vec_norm,

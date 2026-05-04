@@ -247,6 +247,10 @@ class VectorDatabase:
             int: Index của record vừa thêm.
         """
         vector = np.asarray(vector, dtype=np.float32).flatten()
+        
+        if self.distance == "cosine":
+            norm = np.linalg.norm(vector)
+            vector = (vector / (norm + 1e-8)).astype(np.float32)
 
         if self._n_features is None:
             self._n_features = len(vector)
