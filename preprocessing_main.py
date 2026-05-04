@@ -3,8 +3,8 @@ import time
 from pathlib import Path
 from preprocessing import TreePreprocessingPipeline
 
-INPUT_DIR  = r"res/"
-OUTPUT_DIR = r"res/"
+INPUT_DIR  = r"Raw_Tree_Dataset_Test"
+OUTPUT_DIR = r"res"
 
 def get_all_images(folder: str) -> list:
     exts = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp"}
@@ -16,43 +16,38 @@ def get_all_images(folder: str) -> list:
 
 def run_preprocessing():
     all_image_paths = get_all_images(INPUT_DIR)
-    total_in_folder = len(all_image_paths)
-
-    START_INDEX = 1
-    image_paths = all_image_paths[START_INDEX - 1:]
-
-    if not image_paths:
-        print(f"Không còn ảnh nào để xử lý từ vị trí {START_INDEX}.")
+    
+    if not all_image_paths:
+        print(f"Không tìm thấy ảnh nào trong thư mục {INPUT_DIR}.")
         return
 
-    print(f"start from {START_INDEX} (remain {len(image_paths)} ảnh).")
+    print(f"Tìm thấy {len(all_image_paths)} ảnh. Bắt đầu tiền xử lý...")
 
     start_time = time.time()
     
-    pipeline = TreePreprocessingPipeline(output_size=(512, 512), segment_method="rembg")
-
-    for i, path in enumerate(image_paths):
-        current_number = START_INDEX + i
-        path_obj  = Path(path)
-        filename  = path_obj.name
-        
-        rel_path  = path_obj.relative_to(INPUT_DIR)
-        out_path  = Path(OUTPUT_DIR) / rel_path
-        
-        try:
-            result = pipeline.run(path)
-            if result.is_valid:
-                pipeline.save_result(result, str(out_path))
-                print(f"[{current_number}/{total_in_folder}] done: {rel_path}")
-            else:
-                print(f"[{current_number}/{total_in_folder}] invalid: {rel_path} - {result.validation.reason if result.validation else 'Error'}")
-
-        except Exception as e:
-            print(f"Lỗi tại file {filename}: {e}")
+    # Khởi tạo pipeline
+    pipeline = TreePreprocessingPipeline(
+        output_size=(512, 512), 
+        segment_method="rembg",
+        verbose=True
+    )
+    
+    # Chạy batch processing với base_dir để giữ nguyên cấu trúc thư mục
+    results = pipeline.run_batch(
+        image_paths=all_image_paths,
+        output_dir=OUTPUT_DIR,
+        base_dir=INPUT_DIR,
+        save_masks=True, # Lưu thêm ảnh mask nếu cần
+        save_viz=False   # Bật True nếu muốn lưu ảnh các bước (visualization)
+    )
 
     end_time = time.time()
-    print("DONE")
+    valid_count = sum(1 for r in results if r.is_valid)
+    
+    print("\n--- HOÀN THÀNH ---")
+    print(f"Xử lý thành công: {valid_count}/{len(all_image_paths)} ảnh.")
     print(f"Tổng thời gian chạy: {(end_time - start_time)/60:.2f} phút.")
+    print(f"Kết quả được lưu tại: {OUTPUT_DIR}")
 
 if __name__ == "__main__":
-    run_preprocessing()
+    run_preprocessing()
