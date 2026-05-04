@@ -235,7 +235,8 @@ def visualize_tree_features(image_path: str):
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         # Tự động tìm ảnh mẫu trong thư mục tree/
-        sample = next(Path("tree").rglob("*.png"), None) if Path("tree").exists() else None
+        sample_dirs = [p for p in Path("tree").rglob("*.*") if p.suffix.lower() in {".jpg", ".jpeg", ".png", ".bmp", ".tiff"}]
+        sample = sample_dirs[0] if sample_dirs else None
         if sample:
             print(f"Demo voi: {sample}")
             visualize_tree_features(str(sample))

@@ -1,13 +1,18 @@
 import os
 import time
 from pathlib import Path
-from PIL import Image
-from modules.file_handler import get_all_images, save_image
-from modules.transform import resize_only
-from modules.segmentation import remove_tree_background
+from preprocessing import TreePreprocessingPipeline
 
 INPUT_DIR  = r"res/"
-OUTPUT_DIR = r"res/"   # Lưu đè vào cùng thư mục (jpg → png)
+OUTPUT_DIR = r"res/"
+
+def get_all_images(folder: str) -> list:
+    exts = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".webp"}
+    paths = []
+    for p in Path(folder).rglob("*"):
+        if p.is_file() and p.suffix.lower() in exts:
+            paths.append(str(p))
+    return sorted(paths)
 
 def run_preprocessing():
     all_image_paths = get_all_images(INPUT_DIR)
@@ -23,28 +28,24 @@ def run_preprocessing():
     print(f"start from {START_INDEX} (remain {len(image_paths)} ảnh).")
 
     start_time = time.time()
+    
+    pipeline = TreePreprocessingPipeline(output_size=(512, 512), segment_method="rembg")
 
     for i, path in enumerate(image_paths):
         current_number = START_INDEX + i
         path_obj  = Path(path)
         filename  = path_obj.name
-        # Giữ nguyên cấu trúc subdirectory tương đối so với INPUT_DIR
+        
         rel_path  = path_obj.relative_to(INPUT_DIR)
-        new_rel   = rel_path.with_suffix(".png")
-        out_path  = Path(OUTPUT_DIR) / new_rel
-        out_dir   = out_path.parent
-
-        # Bỏ qua nếu file PNG đầu ra đã tồn tại (tránh double-process)
-        if out_path.exists() and path_obj.suffix.lower() != ".png":
-            print(f"[{current_number}/{total_in_folder}] skip (da xu ly): {filename}")
-            continue
-
+        out_path  = Path(OUTPUT_DIR) / rel_path
+        
         try:
-            with Image.open(path).convert("RGBA") as img:
-                img_no_bg = remove_tree_background(img)
-                final_img = resize_only(img_no_bg)
-                save_image(final_img, str(out_dir), out_path.name)
-                print(f"[{current_number}/{total_in_folder}] done: {new_rel}")
+            result = pipeline.run(path)
+            if result.is_valid:
+                pipeline.save_result(result, str(out_path))
+                print(f"[{current_number}/{total_in_folder}] done: {rel_path}")
+            else:
+                print(f"[{current_number}/{total_in_folder}] invalid: {rel_path} - {result.validation.reason if result.validation else 'Error'}")
 
         except Exception as e:
             print(f"Lỗi tại file {filename}: {e}")

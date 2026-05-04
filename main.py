@@ -222,7 +222,8 @@ def main() -> None:
         query_image(args.query, k=args.k)
     else:
         # Demo nhanh
-        sample_dirs = list(Path("tree").rglob("*.png"))[:1] if Path("tree").exists() else []
+        sample_dirs = [p for p in Path("tree").rglob("*.*") if p.suffix.lower() in {".jpg", ".jpeg", ".png", ".bmp", ".tiff"}]
+        sample_dirs = sample_dirs[:1] if Path("tree").exists() else []
         if sample_dirs:
             demo_image = str(sample_dirs[0])
             logger.info("=== DEMO: Trich rut 1 anh va hien thi vector ===")

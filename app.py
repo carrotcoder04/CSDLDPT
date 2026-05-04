@@ -13,12 +13,13 @@ from vector_normalizer import VectorNormalizer
 
 # ── Import module tien xu ly (optional) ───────────────────
 try:
-    from modules.segmentation import remove_tree_background
-    from modules.transform import resize_only
+    from preprocessing import TreePreprocessingPipeline
     _PREPROCESS_AVAILABLE = True
+    _pipeline = TreePreprocessingPipeline(output_size=(512, 512), segment_method="rembg")
 except Exception as _e:
     print(f"[WARN] Khong tai duoc module tien xu ly: {_e}")
     _PREPROCESS_AVAILABLE = False
+    _pipeline = None
 
 # ── Đường dẫn tuyệt đối ───────────────────────────────────
 APP_DIR = Path(__file__).parent.resolve()
@@ -42,28 +43,29 @@ except Exception as e:
 # ── Tien xu ly anh truy van ───────────────────────────────
 def preprocess_query_image(image_path: str) -> str:
     """
-    Tien xu ly anh truy van:
-      1. Remove background bang SAM
-      2. Resize ve 512x512
-    Tra ve duong dan file tam (PNG) chua xu ly.
+    Tien xu ly anh truy van bang preprocessing module moi
+    Tra ve duong dan file tam chua anh da qua xu ly.
     Neu tien xu ly that bai, tra ve path goc.
     """
-    if not _PREPROCESS_AVAILABLE:
+    if not _PREPROCESS_AVAILABLE or _pipeline is None:
         return image_path
 
     try:
-        with Image.open(image_path).convert("RGBA") as img:
-            img_no_bg = remove_tree_background(img)
-            img_resized = resize_only(img_no_bg)
-
-        # Luu vao file tam de extractor doc
-        tmp = tempfile.NamedTemporaryFile(
-            suffix=".png", delete=False, dir=str(APP_DIR)
-        )
-        img_resized.save(tmp.name)
-        tmp.close()
-        print(f"[Tien xu ly] Xong: {Path(image_path).name} -> {Path(tmp.name).name}")
-        return tmp.name
+        result = _pipeline.run(image_path)
+        if result.is_valid and result.processed_image is not None:
+            # Luu vao file tam de extractor doc
+            # Output luon la .png de co the load de dang (chua xu ly background bang thu vien khac)
+            tmp = tempfile.NamedTemporaryFile(
+                suffix=".png", delete=False, dir=str(APP_DIR)
+            )
+            # result.processed_image la numpy array
+            Image.fromarray(result.processed_image).save(tmp.name)
+            tmp.close()
+            print(f"[Tien xu ly] Xong: {Path(image_path).name} -> {Path(tmp.name).name}")
+            return tmp.name
+        else:
+            print(f"[Tien xu ly] Anh khong hop le: {result.validation.reason if result.validation else 'Unknown error'}")
+            return image_path
     except Exception as e:
         print(f"[Tien xu ly] Loi, dung anh goc: {e}")
         return image_path
@@ -215,8 +217,6 @@ def search_similar_trees(uploaded_path):
             dist  = r["distance"]
             rank  = r["rank"]
             db_path = r["image_path"]          # path luu trong DB
-            # Doi duoi thanh .jpg de tra ve cho client theo yeu cau
-            db_path = str(Path(db_path).with_suffix(".jpg"))
             fname = Path(db_path).name
             caption = f"#{rank} {label}  dist={dist:.4f}"
 
@@ -240,7 +240,7 @@ def search_similar_trees(uploaded_path):
                 try:
                     pil_img = load_pil(abs_path)
                     # Xoay anh ket qua +90 CW (phai) de sua anh bi xoay trai 90 (CCW)
-                    pil_img = pil_img.rotate(-90, expand=True)
+                    # pil_img = pil_img.rotate(-90, expand=True)
                     gallery.append((pil_img, caption))
                 except Exception as e:
                     lines.append(f"    LOI doc anh: {e}")
