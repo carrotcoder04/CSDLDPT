@@ -21,9 +21,8 @@ except Exception as _e:
     _PREPROCESS_AVAILABLE = False
 
 # ── Đường dẫn tuyệt đối ───────────────────────────────────
-APP_DIR    = Path(__file__).parent.resolve()   # c:\Minh\CSDLDPT\CSDLDPT
-PARENT_DIR = APP_DIR.parent.resolve()          # c:\Minh\CSDLDPT
-RES_DIR    = PARENT_DIR / "res"               # c:\Minh\CSDLDPT\res
+APP_DIR = Path(__file__).parent.resolve()
+RES_DIR = APP_DIR / "res"   # BUG 10: trỏ đúng về CSDLDPT/res
 
 print(f"APP_DIR  = {APP_DIR}")
 print(f"RES_DIR  = {RES_DIR}  exists={RES_DIR.exists()}")
@@ -74,29 +73,37 @@ def resolve_abs_path(db_path: str) -> Path | None:
     """
     Thu cac vi tri theo thu tu:
       1. Path tuyet doi (neu db_path la absolute)
-      2. APP_DIR / db_path  (e.g. CSDLDPT/res/LoaiCay/file.png)
-      3. RES_DIR / rel      (strip 'res'/'tree' prefix -> Study/res/LoaiCay/file.png)
+      2. APP_DIR / db_path  (e.g. res/LoaiCay/file.png)
+      3. RES_DIR / rel      (strip 'res'/'tree' prefix)
+    Moi buoc thu them duoi .jpg va .jpeg neu khong tim thay ban .png goc.
     """
     p = Path(db_path)
 
-    # 1. Path tuyet doi
-    if p.is_absolute() and p.exists():
-        return p
+    def _find(candidate: Path) -> Path | None:
+        """Thu .jpg truoc (file goc la .jpg), roi moi thu duoi goc va .jpeg/.png."""
+        for ext in (".jpg", ".jpeg", candidate.suffix, ".png"):
+            alt = candidate.with_suffix(ext)
+            if alt.exists():
+                return alt
+        return None
 
-    # 2. Relative to APP_DIR (path luu trong DB la relative to APP_DIR)
-    candidate = APP_DIR / p
-    if candidate.exists():
-        return candidate
+    # 1. Path tuyet doi
+    if p.is_absolute():
+        found = _find(p)
+        if found:
+            return found
+
+    # 2. Relative to APP_DIR
+    found = _find(APP_DIR / p)
+    if found:
+        return found
 
     # 3. Strip thu muc goc -> RES_DIR
     parts = p.parts
-    if parts and parts[0].lower() in ("res", "tree"):
-        rel = Path(*parts[1:])
-    else:
-        rel = p
-    candidate = RES_DIR / rel
-    if candidate.exists():
-        return candidate
+    rel = Path(*parts[1:]) if parts and parts[0].lower() in ("res", "tree") else p
+    found = _find(RES_DIR / rel)
+    if found:
+        return found
 
     return None
 
@@ -126,24 +133,24 @@ def search_similar_trees(uploaded_path):
 
         result = extractor.extract(processed_path)
 
-        # ── Lay vector go va dac trung chinh cua anh truy van ──
-        raw_vec = result["vector"]        # vector chua chuan hoa
-        feats   = result["features"]      # dict ten -> gia tri
+        # BUG 6: Kiểm tra success TRƯỜC khi xóa file tạm
+        if not result["success"]:
+            if preprocessed:
+                Path(processed_path).unlink(missing_ok=True)
+            return f"LOI trich xuat: {result['errors']}", None, None, [], {}
 
-        # Load lai cac anh cho UI truoc khi xoa file tam
+        # Load lại các ảnh cho UI
         query_img_pil = load_pil(Path(uploaded_path))
         processed_img_pil = load_pil(Path(processed_path)) if preprocessed else query_img_pil
 
-        # Don dep file tam neu da tao
+        # Don dep file tạm sau khi đã load PIL xong
         if preprocessed:
             try:
                 Path(processed_path).unlink(missing_ok=True)
             except Exception:
                 pass
 
-        if not result["success"]:
-            return f"LOI trich xuat: {result['errors']}", None, None, [], {}
-
+        feats     = result["features"]   # dict ten -> gia tri
         v_norm    = result.get("vector_normalized")
         query_vec = v_norm if v_norm is not None else result["vector"]
         # Query k+1 de phong truong hop chinh anh truy van nam trong DB
@@ -158,9 +165,6 @@ def search_similar_trees(uploaded_path):
         for i, r in enumerate(results, start=1):
             r["rank"] = i
 
-        # ── Lay vector go va dac trung chinh cua anh truy van ──
-        raw_vec = result["vector"]        # vector chua chuan hoa
-        feats   = result["features"]      # dict ten -> gia tri
 
         def fmt(v): return f"{v:.4f}"
 
@@ -211,6 +215,8 @@ def search_similar_trees(uploaded_path):
             dist  = r["distance"]
             rank  = r["rank"]
             db_path = r["image_path"]          # path luu trong DB
+            # Doi duoi thanh .jpg de tra ve cho client theo yeu cau
+            db_path = str(Path(db_path).with_suffix(".jpg"))
             fname = Path(db_path).name
             caption = f"#{rank} {label}  dist={dist:.4f}"
 
@@ -233,6 +239,8 @@ def search_similar_trees(uploaded_path):
             if abs_path:
                 try:
                     pil_img = load_pil(abs_path)
+                    # Xoay anh ket qua +90 CW (phai) de sua anh bi xoay trai 90 (CCW)
+                    pil_img = pil_img.rotate(-90, expand=True)
                     gallery.append((pil_img, caption))
                 except Exception as e:
                     lines.append(f"    LOI doc anh: {e}")

@@ -123,29 +123,51 @@ class TreeFeatureExtractor:
             f"normalizer={'co' if normalizer else 'khong'}"
         )
 
-    def load_image(self, image_path: Union[str, Path]) -> Optional[np.ndarray]:
+    def load_image(self, image_path: Union[str, Path]):
         """
         Đọc và resize ảnh từ đường dẫn.
+        Hỗ trợ ảnh RGBA (PNG đã qua SAM): dùng alpha channel làm tree mask.
 
         Args:
             image_path: Đường dẫn tới file ảnh.
 
         Returns:
-            numpy array H x W x 3 (BGR), hoặc None nếu đọc thất bại.
+            Tuple (img_bgr, alpha_mask):
+                - img_bgr   : numpy array (H, W, 3) BGR, hoặc None nếu lỗi.
+                - alpha_mask: numpy array (H, W) uint8 0/255 nếu có alpha,
+                              None nếu ảnh không có kênh alpha.
         """
         image_path = str(image_path)
-        img = cv2.imread(image_path)
+        # IMREAD_UNCHANGED để giữ alpha channel nếu có
+        img_raw = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
 
-        if img is None:
+        if img_raw is None:
             logger.error(f"Khong the doc anh: {image_path}")
-            return None
+            return None, None
 
-        if img.ndim != 3 or img.shape[2] != 3:
-            logger.error(f"Anh khong hop le (can BGR 3 kenh): {image_path}")
-            return None
+        alpha_mask = None
 
-        img_resized = cv2.resize(img, self.target_size, interpolation=cv2.INTER_AREA)
-        return img_resized
+        if img_raw.ndim == 2:
+            # Grayscale → chuyển sang BGR
+            img_bgr = cv2.cvtColor(img_raw, cv2.COLOR_GRAY2BGR)
+        elif img_raw.ndim == 3 and img_raw.shape[2] == 4:
+            # RGBA (PNG đã qua SAM) → tách alpha làm mask
+            alpha = img_raw[:, :, 3]
+            alpha_mask_full = (alpha > 127).astype(np.uint8) * 255
+            img_bgr = img_raw[:, :, :3]  # chỉ giữ BGR
+            # Resize alpha mask cùng kích thước
+            alpha_mask = cv2.resize(
+                alpha_mask_full, self.target_size, interpolation=cv2.INTER_NEAREST
+            )
+            alpha_mask = (alpha_mask > 127).astype(np.uint8) * 255
+        elif img_raw.ndim == 3 and img_raw.shape[2] == 3:
+            img_bgr = img_raw
+        else:
+            logger.error(f"Anh khong hop le (kenh khong xac dinh): {image_path}")
+            return None, None
+
+        img_resized = cv2.resize(img_bgr, self.target_size, interpolation=cv2.INTER_AREA)
+        return img_resized, alpha_mask
 
     def _build_feature_names(self, all_features: dict) -> list:
         """
@@ -197,12 +219,19 @@ class TreeFeatureExtractor:
         t_start = time.perf_counter()
 
         # ── Bước 1: Đọc và resize ảnh ──────────────────────
-        img = self.load_image(image_path)
+        img, alpha_mask = self.load_image(image_path)
         if img is None:
             return self._error_result(str(image_path), "Khong the doc anh")
 
         # ── Bước 2: Tính mask cây 1 lần duy nhất ───────────
-        shared_mask = create_tree_mask(img)
+        # Ưu tiên alpha mask (từ SAM) nếu có và đủ lớn (> 1% ảnh)
+        # → đảm bảo nhất quán giữa ảnh DB (đã qua SAM) và ảnh truy vấn
+        h_img, w_img = img.shape[:2]
+        if alpha_mask is not None and np.sum(alpha_mask == 255) >= h_img * w_img * 0.01:
+            shared_mask = alpha_mask
+            logger.debug("Dung alpha mask (SAM) lam tree mask")
+        else:
+            shared_mask = create_tree_mask(img)
 
         # ── Bước 3: Trích rút từng nhóm đặc trưng ──────────
         all_features = {}
@@ -233,6 +262,10 @@ class TreeFeatureExtractor:
         if self.normalizer is not None and self.normalizer.is_fitted:
             try:
                 vector_normalized = self.normalizer.transform_one(vector)
+                # BUG 8: Clip Z-score về [-3, 3] để giảm ảnh hưởng outlier
+                # (Hu Moments, grad_mean có thể rất lớn → dominate Euclidean)
+                if self.normalizer.method == "zscore":
+                    vector_normalized = np.clip(vector_normalized, -3.0, 3.0)
             except Exception as e:
                 logger.warning(f"Loi khi chuan hoa vector: {e}")
 

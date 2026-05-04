@@ -203,7 +203,7 @@ def extract_canopy_features(
 
     # Nếu mask quá rỗng, dùng toàn ảnh như mask mặc định
     h, w = image_bgr.shape[:2]
-    if np.sum(mask == 255) < h * w * 0.02:
+    if np.sum(mask == 255) < h * w * 0.05:
         mask = np.full((h, w), 255, dtype=np.uint8)
 
     # ── 1. Vertical Profile ───────────────────────────────
