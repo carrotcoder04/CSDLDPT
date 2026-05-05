@@ -488,8 +488,11 @@ class VectorDatabase:
             raise FileNotFoundError(f"Khong tim thay file: {path}")
 
         data = np.load(path, allow_pickle=True)
-        distance = str(data["distance"][0])
+        distance = str(data["distance"][0]) if "distance" in data else "euclidean"
         db = cls(distance=distance)
+
+        if "n_features" in data:
+            db._n_features = int(data["n_features"][0])
 
         vectors = data["vectors"]
         image_paths = data["image_paths"]

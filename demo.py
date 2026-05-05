@@ -109,7 +109,7 @@ def visualize_tree_features(image_path: str):
 
     ax2 = fig.add_subplot(gs[0, 1])
     ax2.imshow(tree_mask, cmap="gray")
-    styled_ax(ax2, "Mat na cay (Otsu + Flood-fill)")
+    styled_ax(ax2, "Mat na cay (GrabCut + Otsu + HSV fusion)")
     ax2.axis("off")
 
     ax3 = fig.add_subplot(gs[0, 2])
@@ -137,13 +137,13 @@ def visualize_tree_features(image_path: str):
     ax6.tick_params(colors=label_color, labelsize=7)
 
     ax7 = fig.add_subplot(gs[1, 2])
-    hue_vals = [features.get(f"color_hue_hist_{i}", 0) for i in range(8)]
-    hue_labels = [f"H{i}" for i in range(8)]
-    colors_bar = plt.cm.hsv(np.linspace(0, 1, 8))
+    hue_vals = [features.get(f"color_hue_hist_{i}", 0) for i in range(6)]
+    hue_labels = [f"H{i}" for i in range(6)]
+    colors_bar = plt.cm.hsv(np.linspace(0, 1, 6))
     ax7.bar(hue_labels, hue_vals, color=colors_bar, edgecolor="#45475a", linewidth=0.5)
-    styled_ax(ax7, "Hue Histogram (8 bins)")
+    styled_ax(ax7, "Hue Histogram (6 bins, L1-norm)")
     ax7.tick_params(colors=label_color, labelsize=8)
-    ax7.set_ylabel("Ty le", color=label_color, fontsize=8)
+    ax7.set_ylabel("Ty le (sum=1)", color=label_color, fontsize=8)
 
     ax8 = fig.add_subplot(gs[1, 3])
     # Overlay green mask lên ảnh
@@ -156,9 +156,9 @@ def visualize_tree_features(image_path: str):
 
     # ── Hàng 3 ───────────────────────────────────────────
     ax9 = fig.add_subplot(gs[2, 0])
-    shape_keys  = ["aspect_ratio", "solidity", "symmetry", "crown_ratio"]
+    shape_keys  = ["aspect_ratio", "solidity", "extent_ratio", "crown_ratio"]
     shape_vals  = [features.get(f"shape_{k}", 0) for k in shape_keys]
-    shape_short = ["Aspect", "Solid.", "Sym.", "Crown"]
+    shape_short = ["Aspect", "Solid.", "Extent", "Crown"]
     ax9.bar(shape_short, shape_vals,
             color=["#89b4fa", "#a6e3a1", "#fab387", "#cba6f7"],
             edgecolor="#45475a")
@@ -167,9 +167,9 @@ def visualize_tree_features(image_path: str):
     ax9.set_ylim(0, max(max(shape_vals) * 1.3, 1.2))
 
     ax10 = fig.add_subplot(gs[2, 1])
-    tex_keys  = ["contrast", "homogeneity", "energy", "roughness"]
+    tex_keys  = ["contrast", "homogeneity", "lbp_0", "lbp_2"]
     tex_vals  = [features.get(f"texture_{k}", 0) for k in tex_keys]
-    tex_short = ["Contr.", "Homog.", "Energy", "Rough."]
+    tex_short = ["Contr.", "Homog.", "LBP0", "LBP2"]
     ax10.bar(tex_short, tex_vals,
              color=["#f38ba8", "#89dceb", "#a6e3a1", "#f9e2af"],
              edgecolor="#45475a")
@@ -186,14 +186,15 @@ def visualize_tree_features(image_path: str):
         ["Mau sac",  "H_mean (°)",       f"{features.get('color_h_mean', 0):.2f}"],
         ["Mau sac",  "S_mean",            f"{features.get('color_s_mean', 0):.2f}"],
         ["Mau sac",  "Green Ratio",       f"{features.get('color_green_ratio', 0):.4f}"],
+        ["Mau sac",  "Dom H1/S1/V1",     f"{features.get('color_dom_h1',0):.2f}/{features.get('color_dom_s1',0):.2f}/{features.get('color_dom_v1',0):.2f}"],
         ["Hinh thai","Aspect Ratio",      f"{features.get('shape_aspect_ratio', 0):.4f}"],
         ["Hinh thai","Solidity",          f"{features.get('shape_solidity', 0):.4f}"],
-        ["Hinh thai","Symmetry",          f"{features.get('shape_symmetry', 0):.4f}"],
+        ["Hinh thai","Extent Ratio",      f"{features.get('shape_extent_ratio', 0):.4f}"],
         ["Hinh thai","Crown Ratio",       f"{features.get('shape_crown_ratio', 0):.4f}"],
         ["Ket cau",  "Contrast",          f"{features.get('texture_contrast', 0):.4f}"],
-        ["Ket cau",  "Roughness",         f"{features.get('texture_roughness', 0):.4f}"],
+        ["Ket cau",  "Homogeneity",       f"{features.get('texture_homogeneity', 0):.4f}"],
         ["Tan cay",  "Contour Complex.",  f"{features.get('canopy_contour_complexity', 0):.4f}"],
-        ["Tan cay",  "N Components",      f"{features.get('canopy_n_components', 0):.0f}"],
+        ["Tan cay",  "Width Mean/Std",    f"{features.get('canopy_width_mean',0):.3f}/{features.get('canopy_width_std',0):.3f}"],
         ["",         f"Tong: {result['n_features']} dac trung", f"{result['processing_time_ms']:.0f} ms"],
     ]
 

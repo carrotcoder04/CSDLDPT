@@ -23,7 +23,7 @@ except Exception as _e:
 
 # ── Đường dẫn tuyệt đối ───────────────────────────────────
 APP_DIR = Path(__file__).parent.resolve()
-RES_DIR = APP_DIR / "res"   # BUG 10: trỏ đúng về CSDLDPT/res
+RES_DIR = APP_DIR  
 
 print(f"APP_DIR  = {APP_DIR}")
 print(f"RES_DIR  = {RES_DIR}  exists={RES_DIR.exists()}")
