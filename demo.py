@@ -137,11 +137,11 @@ def visualize_tree_features(image_path: str):
     ax6.tick_params(colors=label_color, labelsize=7)
 
     ax7 = fig.add_subplot(gs[1, 2])
-    hue_vals = [features.get(f"color_hue_hist_{i}", 0) for i in range(6)]
-    hue_labels = [f"H{i}" for i in range(6)]
-    colors_bar = plt.cm.hsv(np.linspace(0, 1, 6))
+    hue_vals = [features.get(f"color_hue_hist_{i}", 0) for i in range(8)]
+    hue_labels = [f"H{i}" for i in range(8)]
+    colors_bar = plt.cm.hsv(np.linspace(0, 1, 8))
     ax7.bar(hue_labels, hue_vals, color=colors_bar, edgecolor="#45475a", linewidth=0.5)
-    styled_ax(ax7, "Hue Histogram (6 bins, L1-norm)")
+    styled_ax(ax7, "Hue Histogram (8 bins, L1-norm)")
     ax7.tick_params(colors=label_color, labelsize=8)
     ax7.set_ylabel("Ty le (sum=1)", color=label_color, fontsize=8)
 
@@ -186,7 +186,7 @@ def visualize_tree_features(image_path: str):
         ["Mau sac",  "H_mean (°)",       f"{features.get('color_h_mean', 0):.2f}"],
         ["Mau sac",  "S_mean",            f"{features.get('color_s_mean', 0):.2f}"],
         ["Mau sac",  "Green Ratio",       f"{features.get('color_green_ratio', 0):.4f}"],
-        ["Mau sac",  "Dom H1/S1/V1",     f"{features.get('color_dom_h1',0):.2f}/{features.get('color_dom_s1',0):.2f}/{features.get('color_dom_v1',0):.2f}"],
+        ["Mau sac",  "Dom B1/G1/R1",     f"{features.get('color_dom_b1',0):.2f}/{features.get('color_dom_g1',0):.2f}/{features.get('color_dom_r1',0):.2f}"],
         ["Hinh thai","Aspect Ratio",      f"{features.get('shape_aspect_ratio', 0):.4f}"],
         ["Hinh thai","Solidity",          f"{features.get('shape_solidity', 0):.4f}"],
         ["Hinh thai","Extent Ratio",      f"{features.get('shape_extent_ratio', 0):.4f}"],

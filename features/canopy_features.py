@@ -1,25 +1,12 @@
 """
-canopy_features.py  [v2 – Redesigned]
----------------------------------------
-Trích rút đặc trưng tán cây – phiên bản tối giản (5 chiều).
+canopy_features.py
+------------------
+Trích rút đặc trưng tán cây (9 chiều).
 
-Vector tán cây (5 chiều):
-    - peak_row_norm     : Vị trí hàng có mật độ pixel cao nhất [0, 1]
-    - top25_ratio       : Tỷ lệ pixel trong 25% trên cùng [0, 1]
-    - contour_complexity: Perimeter / sqrt(Area) – viền phức tạp vs đơn giản
-    - width_mean        : Độ rộng tán trung bình (chuẩn hóa theo chiều rộng ảnh)
-    - width_std         : Độ lệch chuẩn độ rộng tán – phân biệt hình nón vs hình tròn
-
-Lý do thiết kế:
-    - Loại bỏ bottom25_ratio: tương quan cao với top25_ratio (r = -0.81).
-      top25_ratio + peak_row_norm đã đại diện đầy đủ phân bố dọc.
-    - Loại bỏ convexity: tương quan cao với solidity trong shape_features (r > 0.75),
-      dẫn đến redundancy giữa hai nhóm đặc trưng.
-    - Loại bỏ max_width_norm: tương quan cao với width_mean (r ≈ 0.90).
-    - Loại bỏ n_components: không ổn định, phụ thuộc nhiều vào chất lượng mask.
-      Giá trị thường = 1 cho hầu hết ảnh cây đơn.
-
-Tổng: 5 chiều.
+Vector tán cây (9 chiều):
+    - bottom25_ratio, top25_ratio, peak_row_norm
+    - contour_complexity, convexity, n_components
+    - max_width_norm, width_mean, width_std
 """
 
 import cv2
@@ -36,6 +23,7 @@ def extract_vertical_distribution(mask: np.ndarray) -> dict:
     - peak_row_norm : Hàng có pixel nhiều nhất (vị trí tán dày nhất), chuẩn hóa [0, 1].
                       Giá trị thấp → tán tập trung ở phần trên ảnh (cây cao).
     - top25_ratio   : Tỷ lệ pixel trong 25% trên cùng [0, 1].
+    - bottom25_ratio: Tỷ lệ pixel trong 25% dưới cùng [0, 1].
                       Cao → tán phát triển mạnh ở phần ngọn.
 
     Args:
@@ -54,8 +42,10 @@ def extract_vertical_distribution(mask: np.ndarray) -> dict:
     peak_row = int(np.argmax(row_counts))
     peak_row_norm = float(peak_row) / float(h)
     top25_ratio = float(row_counts[:h // 4].sum()) / total
+    bottom25_ratio = float(row_counts[(3 * h) // 4:].sum()) / total
 
     return {
+        "bottom25_ratio": bottom25_ratio,
         "peak_row_norm": peak_row_norm,
         "top25_ratio":   top25_ratio,
     }
@@ -91,6 +81,25 @@ def extract_contour_complexity(mask: np.ndarray) -> float:
     return perimeter / np.sqrt(area)
 
 
+def extract_contour_structure(mask: np.ndarray) -> dict:
+    """Tính convexity và số thành phần liên thông của mask."""
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    valid = [c for c in contours if cv2.contourArea(c) > 20]
+    if not valid:
+        return {"convexity": 0.0, "n_components": 0.0}
+
+    contour = max(valid, key=cv2.contourArea)
+    perimeter = float(cv2.arcLength(contour, closed=True))
+    hull = cv2.convexHull(contour)
+    hull_perimeter = float(cv2.arcLength(hull, closed=True))
+    convexity = hull_perimeter / perimeter if perimeter > 0 else 0.0
+
+    return {
+        "convexity": convexity,
+        "n_components": float(len(valid)),
+    }
+
+
 def extract_horizontal_width(mask: np.ndarray) -> dict:
     """
     Tính 2 đặc trưng phân bố chiều rộng tán theo từng hàng.
@@ -115,10 +124,11 @@ def extract_horizontal_width(mask: np.ndarray) -> dict:
     active = row_widths[row_widths > 0]
 
     if len(active) == 0:
-        return {"width_mean": 0.0, "width_std": 0.0}
+        return {"max_width_norm": 0.0, "width_mean": 0.0, "width_std": 0.0}
 
     active_norm = active / float(w)
     return {
+        "max_width_norm": float(np.max(active_norm)),
         "width_mean": float(np.mean(active_norm)),
         "width_std":  float(np.std(active_norm)),
     }
@@ -131,7 +141,7 @@ def extract_horizontal_width(mask: np.ndarray) -> dict:
 def extract_canopy_features(image_bgr: np.ndarray,
                             mask: Optional[np.ndarray] = None) -> dict:
     """
-    Trích rút toàn bộ đặc trưng tán cây (5 chiều).
+    Trích rút toàn bộ đặc trưng tán cây (9 chiều).
 
     Args:
         image_bgr: Ảnh BGR (H×W×3).
@@ -155,11 +165,13 @@ def extract_canopy_features(image_bgr: np.ndarray,
 
     vert = extract_vertical_distribution(mask)
     complexity = extract_contour_complexity(mask)
+    structure = extract_contour_structure(mask)
     horiz = extract_horizontal_width(mask)
 
     return {
         **vert,
         "contour_complexity": complexity,
+        **structure,
         **horiz,
     }
 

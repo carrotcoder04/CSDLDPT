@@ -1,25 +1,13 @@
 """
-texture_features.py  [v2 – Redesigned]
-----------------------------------------
-Trích rút đặc trưng kết cấu tán cây – phiên bản tối giản (7 chiều).
+texture_features.py
+-------------------
+Trích rút đặc trưng kết cấu tán cây (17 chiều).
 
-Vector kết cấu (7 chiều):
-    - lbp_0 .. lbp_4  : LBP Histogram (5 bins, chuẩn hóa)
-    - contrast        : GLCM Contrast – đo độ tương phản cục bộ
-    - homogeneity     : GLCM Homogeneity – đo độ đồng nhất kết cấu
-
-Lý do thiết kế:
-    - LBP bins: giảm 10→5 vì 256 giá trị LBP gom vào 5 bins đủ phân biệt
-      kết cấu mịn (lá rộng) / trung bình / thô (lá kim).
-    - GLCM: chỉ giữ contrast + homogeneity (hai chỉ số bổ trợ nhau nhất).
-      * energy ≈ 1 - entropy, tương quan cao với homogeneity (Pearson > 0.85).
-      * correlation: nhạy với số mức lượng tử (64) và không ổn định.
-    - Loại bỏ gradient (grad_mean, grad_std): tương quan cao với GLCM contrast
-      (VIF ≈ 6.5), nên loại để giảm redundancy.
-    - Loại bỏ roughness: tính toán tốn kém (boxFilter 5×5), tương quan cao
-      với LBP variance (r ≈ 0.78).
-
-Tổng: 7 chiều.
+Vector kết cấu (17 chiều):
+    - contrast, correlation, energy, homogeneity: GLCM trung bình 4 hướng
+    - grad_mean, grad_std: thống kê biên Sobel
+    - lbp_0..lbp_9: LBP Histogram 10 bins
+    - roughness: độ nhám cục bộ theo sai khác với ảnh làm mờ
 """
 
 import cv2
@@ -31,7 +19,7 @@ from features.mask_utils import create_tree_mask
 # ─────────────────────────────────────────────
 #  Hằng số cấu hình
 # ─────────────────────────────────────────────
-LBP_BINS = 5        # Số bins LBP (giảm từ 10 → 5)
+LBP_BINS = 10
 GLCM_LEVELS = 64    # Số mức xám cho GLCM
 GLCM_ANGLES = [0.0, np.pi / 4, np.pi / 2, 3 * np.pi / 4]  # 4 góc để bất biến hướng
 
@@ -139,7 +127,7 @@ def _compute_glcm(gray: np.ndarray, distance: int = 1,
 def extract_glcm_features(image_bgr: np.ndarray,
                           mask: Optional[np.ndarray] = None) -> dict:
     """
-    Tính 2 đặc trưng GLCM: contrast và homogeneity.
+    Tính 4 đặc trưng GLCM: contrast, correlation, energy và homogeneity.
 
     Trung bình trên 4 góc (0°, 45°, 90°, 135°) → bất biến với hướng.
 
@@ -172,18 +160,58 @@ def extract_glcm_features(image_bgr: np.ndarray,
     diff = I - J
 
     contrast = 0.0
+    correlation = 0.0
+    energy = 0.0
     homogeneity = 0.0
 
     for angle in GLCM_ANGLES:
         glcm = _compute_glcm(gray_roi, distance=1, angle=angle)
         contrast    += float(np.sum(glcm * diff ** 2))
+        energy      += float(np.sum(glcm ** 2))
         homogeneity += float(np.sum(glcm / (1.0 + np.abs(diff) + 1e-9)))
+
+        px = glcm.sum(axis=1)
+        py = glcm.sum(axis=0)
+        mux = float(np.sum(i_idx * px))
+        muy = float(np.sum(i_idx * py))
+        sigx = float(np.sqrt(np.sum(((i_idx - mux) ** 2) * px)))
+        sigy = float(np.sqrt(np.sum(((i_idx - muy) ** 2) * py)))
+        if sigx > 1e-12 and sigy > 1e-12:
+            correlation += float(np.sum((I - mux) * (J - muy) * glcm) / (sigx * sigy))
 
     n = len(GLCM_ANGLES)
     return {
-        "contrast":    contrast / n,
+        "contrast": contrast / n,
+        "correlation": correlation / n,
+        "energy": energy / n,
         "homogeneity": homogeneity / n,
     }
+
+
+def extract_gradient_features(image_bgr: np.ndarray,
+                              mask: Optional[np.ndarray] = None) -> dict:
+    """Tính mean/std của gradient magnitude trong vùng cây."""
+    gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
+    gx = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
+    gy = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)
+    grad = np.sqrt(gx ** 2 + gy ** 2)
+    values = grad[mask == 255] if mask is not None and np.any(mask == 255) else grad.ravel()
+    if len(values) == 0:
+        return {"grad_mean": 0.0, "grad_std": 0.0}
+    return {
+        "grad_mean": float(np.mean(values)),
+        "grad_std": float(np.std(values)),
+    }
+
+
+def extract_roughness(image_bgr: np.ndarray,
+                      mask: Optional[np.ndarray] = None) -> float:
+    """Độ nhám cục bộ: trung bình sai khác tuyệt đối với ảnh Gaussian blur."""
+    gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY).astype(np.float32)
+    smooth = cv2.GaussianBlur(gray, (5, 5), 0)
+    rough = np.abs(gray - smooth) / 255.0
+    values = rough[mask == 255] if mask is not None and np.any(mask == 255) else rough.ravel()
+    return float(np.mean(values)) if len(values) else 0.0
 
 
 # ─────────────────────────────────────────────
@@ -193,7 +221,7 @@ def extract_glcm_features(image_bgr: np.ndarray,
 def extract_texture_features(image_bgr: np.ndarray,
                              mask: Optional[np.ndarray] = None) -> dict:
     """
-    Trích rút toàn bộ đặc trưng kết cấu từ ảnh cây (7 chiều).
+    Trích rút toàn bộ đặc trưng kết cấu từ ảnh cây (17 chiều).
 
     Args:
         image_bgr: Ảnh BGR (H×W×3).
@@ -211,14 +239,16 @@ def extract_texture_features(image_bgr: np.ndarray,
     h, w = image_bgr.shape[:2]
     use_mask = mask if np.sum(mask == 255) >= h * w * 0.05 else None
 
-    # 1. LBP Histogram (5 bins)
+    # 1. LBP Histogram (10 bins)
     lbp_hist = extract_lbp_histogram(image_bgr, use_mask)
     lbp_dict = {f"lbp_{i}": float(lbp_hist[i]) for i in range(LBP_BINS)}
 
-    # 2. GLCM: contrast + homogeneity
+    # 2. GLCM + gradient + roughness
     glcm = extract_glcm_features(image_bgr, use_mask)
+    grad = extract_gradient_features(image_bgr, use_mask)
+    roughness = extract_roughness(image_bgr, use_mask)
 
-    return {**lbp_dict, **glcm}
+    return {**glcm, **grad, **lbp_dict, "roughness": roughness}
 
 
 # ─────────────────────────────────────────────

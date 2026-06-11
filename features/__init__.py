@@ -4,7 +4,7 @@ __init__.py
 Package features – tập hợp các module trích rút đặc trưng cây.
 
 Các module con:
-    - color_features   : Đặc trưng màu sắc  (HSV histogram, thống kê, KMeans, green ratio)
+    - color_features   : Đặc trưng màu sắc  (HSV histogram, thống kê, dominant color histogram, green ratio)
     - shape_features   : Đặc trưng hình thái (Bounding box, Solidity, Symmetry, Centroid, Hu)
     - texture_features : Đặc trưng kết cấu   (LBP, GLCM, Gradient, Roughness)
     - canopy_features  : Đặc trưng tán cây   (Vertical profile, Complexity, Width distribution)

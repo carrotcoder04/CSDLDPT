@@ -1,12 +1,12 @@
 """
-main.py  [v2.1 – Fisher-Weighted Features]
+main.py
 --------------------------------------------
-Pipeline CBIR: trích rút → chuẩn hóa → Fisher weighting → BallTree → truy vấn.
+Pipeline CBIR: trích rút → chuẩn hóa → lưu vector → truy vấn.
 
 Cải tiến:
-    - Trích rút 37 chiều (bao gồm màu chủ đạo tính bằng 3D Histogram)
+    - Trích rút 62 chiều theo 4 nhóm màu sắc, hình thái, kết cấu, tán cây
     - Tự động chuẩn hóa Z-score
-    - Lập chỉ mục bằng cấu trúc BallTree (kNN search)
+    - Truy vấn kNN bằng khoảng cách Euclidean
 
 Sử dụng:
     python main.py --build --image_dir tree/

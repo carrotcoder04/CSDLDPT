@@ -1,17 +1,17 @@
 """
 feature_extractor.py  [v2 – Redesigned]
 -----------------------------------------
-Module điều phối tổng hợp – tích hợp 4 nhóm đặc trưng thành vector 31 chiều.
+Module điều phối tổng hợp – tích hợp 4 nhóm đặc trưng thành vector 62 chiều.
 
 Đối tượng: Ảnh toàn cây (chụp cả thân + tán, nền đa dạng).
 
 Kết hợp:
-    - color_features.py   → Đặc trưng màu sắc   (12 chiều)
-    - shape_features.py   → Đặc trưng hình thái  ( 7 chiều)
-    - texture_features.py → Đặc trưng kết cấu    ( 7 chiều)
-    - canopy_features.py  → Đặc trưng tán cây    ( 5 chiều)
+    - color_features.py   → Đặc trưng màu sắc   (24 chiều)
+    - shape_features.py   → Đặc trưng hình thái  (12 chiều)
+    - texture_features.py → Đặc trưng kết cấu    (17 chiều)
+    - canopy_features.py  → Đặc trưng tán cây    ( 9 chiều)
 
-Tổng: 31 chiều đặc trưng (giảm từ 62 chiều phiên bản cũ).
+Tổng: 62 chiều đặc trưng.
 
 Thiết kế:
     - Mask cây được tính MỘT LẦN DUY NHẤT rồi truyền vào cả 4 module.
@@ -23,8 +23,8 @@ Sử dụng:
     from feature_extractor import TreeFeatureExtractor
     extractor = TreeFeatureExtractor()
     result = extractor.extract("tree.jpg")
-    print(result["vector"])       # vector thô (float32, 31 chiều)
-    print(result["n_features"])   # 31
+    print(result["vector"])       # vector thô (float32, 62 chiều)
+    print(result["n_features"])   # 62
 """
 
 import json
@@ -61,7 +61,7 @@ FEATURE_GROUP_ORDER = ["color", "shape", "texture", "canopy"]
 
 class TreeFeatureExtractor:
     """
-    Lớp điều phối trích rút đặc trưng ảnh cây (31 chiều).
+    Lớp điều phối trích rút đặc trưng ảnh cây (62 chiều).
 
     Attributes:
         target_size (tuple):  Kích thước ảnh chuẩn hóa (W, H).

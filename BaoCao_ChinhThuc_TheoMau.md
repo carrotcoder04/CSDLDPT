@@ -16,10 +16,10 @@
 1. Quá trình xử lí ảnh
 2. Các bước xử lí
 **CHƯƠNG III: TRÍCH RÚT ĐẶC TRƯNG**
-1. Nhóm Màu Sắc (18 chiều)
-2. Nhóm Hình Thái (7 chiều)
-3. Nhóm Kết Cấu (7 chiều)
-4. Nhóm Tán Cây (5 chiều)
+1. Nhóm Màu Sắc (24 chiều)
+2. Nhóm Hình Thái (12 chiều)
+3. Nhóm Kết Cấu (17 chiều)
+4. Nhóm Tán Cây (9 chiều)
 5. Vector đặc trưng tổng hợp
 **CHƯƠNG IV: CHUẨN HÓA ĐẶC TRƯNG VÀ TÌM KIẾM**
 1. Chuẩn hóa Vector đặc trưng (Feature Normalization)
@@ -48,7 +48,7 @@ Tập dữ liệu hệ thống sử dụng gồm **1769 ảnh cây**, thuộc 20
 - **Nền ảnh:** Ảnh được loại bỏ nền tự động, giữ lại kênh Alpha, tạo sự nhất quán về vùng chọn đối tượng cây (ROI).
 
 ### 2. Thuộc tính của ảnh cây
-Để nhận diện và so sánh các cây, nhóm thiết kế 4 nhóm thuộc tính (tổng 37 chiều). Lý do lựa chọn:
+Để nhận diện và so sánh các cây, nhóm thiết kế 4 nhóm thuộc tính (tổng 62 chiều). Lý do lựa chọn:
 - **Màu sắc cây (Color):** Giúp phân biệt các cây có lá đổi màu (phong lá đỏ), cây thường xanh, hoặc tỷ lệ thân/lá.
 - **Hình thái tán cây (Tree Shape):** Tính chất hình học giúp phân loại dáng cây (ví dụ cây thông dáng nón nhọn, cây dừa dáng vươn dài, cây đa dáng tròn).
 - **Kết cấu (Texture):** Phân biệt bề mặt tán lá (lá kim rậm rạp thường có độ tương phản, góc cạnh cao hơn lá rộng mượt mà).
@@ -56,10 +56,10 @@ Tập dữ liệu hệ thống sử dụng gồm **1769 ảnh cây**, thuộc 20
 
 ### 3. Tổng quan quy trình trích rút
 #### Sơ đồ khối
-`Ảnh truy vấn -> Chuẩn hóa kích thước -> Tách nền tạo Mask -> Trích xuất 37 Đặc trưng -> Chuẩn hóa Z-Score -> Truy vấn KD-Tree -> Top 5 ảnh tương đồng.`
+`Ảnh truy vấn -> Chuẩn hóa kích thước -> Tách nền tạo Mask -> Trích xuất 62 Đặc trưng -> Chuẩn hóa Z-Score -> Truy vấn KD-Tree -> Top 5 ảnh tương đồng.`
 
 #### Quy trình
-Mỗi ảnh đi qua tiền xử lý để tạo mask nhị phân cô lập vùng cây. Từ mask này, 4 module tính toán đặc trưng độc lập sẽ hoạt động để tạo ra 4 vector con. Các vector con được nối lại thành một vector 37 chiều duy nhất, sau đó đi qua module chuẩn hóa trước khi lưu vào/truy vấn trong CSDL.
+Mỗi ảnh đi qua tiền xử lý để tạo mask nhị phân cô lập vùng cây. Từ mask này, 4 module tính toán đặc trưng độc lập sẽ hoạt động để tạo ra 4 vector con. Các vector con được nối lại thành một vector 62 chiều duy nhất, sau đó đi qua module chuẩn hóa trước khi lưu vào/truy vấn trong CSDL.
 
 ---
 
@@ -84,59 +84,67 @@ Module tiền xử lý kết hợp cả công nghệ tách nền AI (U2Net) và 
 
 ## CHƯƠNG III: TRÍCH RÚT ĐẶC TRƯNG
 
-Hệ thống trích xuất một vector đặc trưng gồm tổng cộng **37 chiều** từ mỗi bức ảnh, được chia thành 4 nhóm nhằm nắm bắt trọn vẹn đặc tính của cây.
+Hệ thống trích xuất một vector đặc trưng gồm tổng cộng **62 chiều** từ mỗi bức ảnh, được chia thành 4 nhóm nhằm nắm bắt trọn vẹn đặc tính của cây.
 
-### 1. Nhóm Màu Sắc (18 chiều)
+### 1. Nhóm Màu Sắc (24 chiều)
 Sử dụng không gian màu HSV (Hue, Saturation, Value) vì nó mô tả màu sắc gần giống với cách cảm nhận của con người hơn không gian RGB.
-- **Hue Histogram (6 chiều):** Chia dải màu Hue ($0 \to 180$ trong OpenCV) thành 6 khoảng (bins) bằng nhau, mỗi khoảng $30^\circ$. Đếm số lượng pixel rơi vào từng khoảng để tạo thành histogram, sau đó chuẩn hóa L1:
-  $$h_i = \frac{|\{p \in \text{ROI} : H(p) \in [30i, 30(i+1))\}|}{|\text{ROI}|}, \quad i \in \{0, \dots, 5\}$$
-- **Thống kê HSV (5 chiều):** Bao gồm $\bar{S}, \bar{V}$ (trung bình) và $\sigma_S, \sigma_V$ (độ lệch chuẩn). Riêng kênh Hue là một vòng tròn màu sắc ($0^\circ \equiv 360^\circ$) nên $\bar{H}$ phải được tính bằng trung bình góc trên mặt phẳng phức:
+- **Hue Histogram (8 chiều):** Chia dải màu Hue ($0 \to 180$ trong OpenCV) thành 8 khoảng. Đếm số lượng pixel rơi vào từng khoảng để tạo histogram và chuẩn hóa L1:
+  $$h_i = \frac{|\{p \in \text{ROI} : H(p) \in [22.5i, 22.5(i+1))\}|}{|\text{ROI}|}, \quad i \in \{0, \dots, 7\}$$
+- **Thống kê HSV (6 chiều):** Bao gồm $\bar{H}$, $\sigma_H$, $\bar{S}, \bar{V}$ (trung bình) và $\sigma_S, \sigma_V$ (độ lệch chuẩn). Riêng kênh Hue là một vòng tròn màu sắc ($0^\circ \equiv 360^\circ$) nên $\bar{H}$ phải được tính bằng trung bình góc trên mặt phẳng phức:
   $$\bar{H} = \frac{1}{2} \cdot \arg\!\left(\frac{1}{N}\sum e^{j \cdot 2H_i \cdot \frac{\pi}{180}}\right) \cdot \frac{180}{\pi} \mod 360$$
-- **Màu chủ đạo (6 chiều):** Tọa độ $(H, S, V)$ của 2 màu chiếm diện tích lớn nhất. Tính bằng cách lập 3D Histogram kích thước $16 \times 8 \times 8$ và lấy tọa độ tâm của 2 bin cao nhất.
+- **Màu chủ đạo (9 chiều):** Tọa độ $(B, G, R)$ của 3 màu chiếm diện tích lớn nhất. Tính bằng cách lập 3D Histogram trên không gian BGR kích thước $16 \times 16 \times 16$ và lấy tọa độ tâm của 3 bin cao nhất.
 - **Tỷ lệ xanh lá - Green Ratio (1 chiều):** Tỷ lệ diện tích lá xanh so với tổng diện tích cây:
   $$\text{Green Ratio} = \frac{|\{p \in \text{ROI} : 17 \le H(p) \le 42 \wedge S(p) > 40 \wedge V(p) > 40\}|}{|\text{ROI}|}$$
 
-### 2. Nhóm Hình Thái (7 chiều)
+### 2. Nhóm Hình Thái (12 chiều)
 Mô tả dáng cây dựa trên đường viền bao quanh (contour).
-- **Chỉ số hình học cơ bản (4 chiều):**
+- **Chỉ số hình học cơ bản (8 chiều):**
+  - *Area Ratio:* Tỷ lệ diện tích cây so với toàn bộ ảnh.
   - *Aspect Ratio (Tỷ lệ khung hình):* $W / H$. (Cây mọc vươn cao có giá trị nhỏ, cây bụi có giá trị lớn).
+  - *Centroid X/Y:* Tọa độ tâm hình học của cây, chuẩn hóa theo kích thước ảnh.
   - *Solidity (Độ đặc):* $\text{Area} / \text{ConvexHullArea}$. (Đánh giá mức độ khuyết/lõm của tán cây).
   - *Extent Ratio (Mức lấp đầy):* $\text{Area} / (W \times H)$.
   - *Crown Ratio:* Tỷ lệ pixel cây nằm ở nửa trên của ảnh so với toàn bộ cây.
-- **Hu Moments (3 chiều):** 3 mô-men đầu tiên ($h_0, h_1, h_2$) mang đặc tính bất biến với phép xoay, tịnh tiến và thay đổi kích thước. Do giá trị rất nhỏ nên được biến đổi logarit:
+- **Symmetry:** Mức độ đối xứng trái-phải của mask cây.
+- **Hu Moments (4 chiều):** 4 mô-men đầu tiên ($h_0, h_1, h_2, h_3$) mang đặc tính bất biến với phép xoay, tịnh tiến và thay đổi kích thước. Do giá trị rất nhỏ nên được biến đổi logarit:
   $$\tilde{h}_i = -\text{sign}(h_i) \cdot \log_{10}(|h_i| + 10^{-12})$$
 
-### 3. Nhóm Kết Cấu (7 chiều)
+### 3. Nhóm Kết Cấu (17 chiều)
 Đánh giá độ nhám và hoa văn phân bố trên bề mặt tán lá, vỏ cây.
-- **LBP Histogram (5 chiều):** Local Binary Pattern so sánh mức sáng của pixel trung tâm với 8 pixel xung quanh (bán kính 1). Nếu điểm xung quanh sáng hơn/bằng thì ghi bit 1, ngược lại bit 0. Các giá trị LBP được gom thành 5 mức độ từ mịn đến thô.
+- **LBP Histogram (10 chiều):** Local Binary Pattern so sánh mức sáng của pixel trung tâm với 8 pixel xung quanh (bán kính 1). Nếu điểm xung quanh sáng hơn/bằng thì ghi bit 1, ngược lại bit 0. Các giá trị LBP được gom thành 10 mức độ từ mịn đến thô.
   $$\text{LBP} = \sum_{n=0}^{7} s(g_n - g_c) \cdot 2^n \quad (\text{với } s(x)=1 \text{ nếu } x \ge 0)$$
-- **GLCM (2 chiều):** Ma trận đồng hiện mức xám (Gray-Level Co-occurrence Matrix), tính trung bình trên 4 hướng ($0^\circ, 45^\circ, 90^\circ, 135^\circ$):
+- **GLCM (4 chiều):** Ma trận đồng hiện mức xám (Gray-Level Co-occurrence Matrix), tính trung bình trên 4 hướng ($0^\circ, 45^\circ, 90^\circ, 135^\circ$):
   - *Contrast (Tương phản):* $\sum (i-j)^2 \cdot P(i,j)$. Tán lá kim nhiều chi tiết sắc nhọn sẽ có Contrast cao.
+  - *Correlation:* Mức tương quan giữa cặp mức xám đồng hiện.
+  - *Energy:* Mức tập trung của ma trận đồng hiện.
   - *Homogeneity (Đồng nhất):* $\sum \frac{P(i,j)}{1 + |i-j|}$.
+- **Gradient và Roughness (3 chiều):** Gồm trung bình/độ lệch chuẩn độ lớn Sobel và độ nhám cục bộ so với ảnh làm mờ Gaussian.
 
-### 4. Nhóm Tán Cây (5 chiều)
+### 4. Nhóm Tán Cây (9 chiều)
 Mô tả sự phân bố cấu trúc của tán.
-- **Phân bố dọc (2 chiều):** 
+- **Phân bố dọc (3 chiều):** 
   - `peak_row_norm`: Xác định tọa độ hàng ngang có số lượng pixel cây lớn nhất (tán dày nhất), chuẩn hóa về khoảng $[0, 1]$.
   - `top25_ratio`: Số pixel nằm ở $25\%$ chiều cao trên cùng chia cho tổng pixel cây.
+  - `bottom25_ratio`: Số pixel nằm ở $25\%$ chiều cao dưới cùng chia cho tổng pixel cây.
 - **Độ phức tạp viền (1 chiều):** Đo lường độ gai góc của viền cây (lá kim sẽ cao hơn lá xoài/bàng).
   $$\text{Contour Complexity} = \frac{\text{Perimeter}}{\sqrt{\text{Area}}}$$
-- **Phân bố ngang (2 chiều):** Chiều rộng trung bình của tán dọc theo thân cây (`width_mean`) và độ lệch chuẩn của chiều rộng đó (`width_std` - phân biệt dáng nón và dáng cầu tròn).
+- **Cấu trúc contour (2 chiều):** `convexity` và `n_components` mô tả độ lồi và số vùng liên thông chính của mask.
+- **Phân bố ngang (3 chiều):** Chiều rộng lớn nhất (`max_width_norm`), chiều rộng trung bình (`width_mean`) và độ lệch chuẩn của chiều rộng đó (`width_std`).
 
 ### 5. Vector đặc trưng tổng hợp
-Đầu ra của quy trình này là một vector số thực `1D NumPy Array` kích thước $1 \times 37$.
+Đầu ra của quy trình này là một vector số thực `1D NumPy Array` kích thước $1 \times 62$.
 
 ---
 
 ## CHƯƠNG IV: CHUẨN HÓA ĐẶC TRƯNG VÀ TÌM KIẾM
 
 ### 1. Chuẩn hóa Vector đặc trưng (Feature Normalization)
-- **1.1. Sự cần thiết của việc chuẩn hóa:** Vector 37 chiều chứa các giá trị với thang đo khác nhau (LBP ở mức [0,1], trong khi GLCM Contrast có thể lên tới >1000). Nếu không chuẩn hóa, đặc trưng có dải giá trị lớn sẽ làm sai lệch bộ tính khoảng cách.
+- **1.1. Sự cần thiết của việc chuẩn hóa:** Vector 62 chiều chứa các giá trị với thang đo khác nhau (LBP ở mức [0,1], trong khi GLCM Contrast có thể lên tới >1000). Nếu không chuẩn hóa, đặc trưng có dải giá trị lớn sẽ làm sai lệch bộ tính khoảng cách.
 - **1.2. Phương pháp Z-score Standardization:** Đưa mọi chiều đặc trưng về phân bố có trung bình $\mu = 0$ và độ lệch chuẩn $\sigma = 1$: $z_i = (x_i - \mu_i) / \sigma_i$.
 - **1.3. Outlier Clipping:** Giới hạn (clip) các giá trị trong khoảng $[-3.0, 3.0]$ để giảm tác động của các ảnh có giá trị cực đoan.
 
 ### 2. Cấu trúc lưu trữ dữ liệu (Vector Database)
-Hệ thống lưu toàn bộ dữ liệu vector của 1769 ảnh vào tệp cấu trúc nén `vector_db.npz`. Mỗi bản ghi (record) bao gồm: đường dẫn file ảnh gốc, nhãn lớp (ví dụ: Ginkgo_Tree), và mảng vector 37 chiều đã được chuẩn hóa.
+Hệ thống lưu toàn bộ dữ liệu vector của 1769 ảnh vào tệp cấu trúc nén `vector_db.npz`. Mỗi bản ghi (record) bao gồm: đường dẫn file ảnh gốc, nhãn lớp (ví dụ: Ginkgo_Tree), và mảng vector 62 chiều đã được chuẩn hóa.
 
 ### 3. Thuật toán tìm kiếm KD-Tree
 Hệ thống sử dụng cấu trúc cây **K-Dimensional Tree** thuần túy để tự động hóa tìm kiếm không dùng thư viện Machine Learning cao cấp.
@@ -154,11 +162,11 @@ Hệ thống tính **Khoảng cách Euclidean (L2 Distance)** giữa vector quer
 - **Công cụ:** Giao diện trực quan được viết bằng framework Gradio, dễ dàng khởi chạy qua file `app.py`.
 - **Quy trình tương tác:** 
   1. Người dùng kéo thả 1 bức ảnh cây (có hoặc không có trong tập dữ liệu) vào trình duyệt.
-  2. Kết quả trung gian (Intermediate results) bao gồm ảnh sau tách nền (Mask) và Logs trích xuất được in trực tiếp lên màn hình Console và UI, giúp người dùng theo dõi tiến trình 37 đặc trưng.
+  2. Kết quả trung gian (Intermediate results) bao gồm ảnh sau tách nền (Mask) và Logs trích xuất được in trực tiếp lên màn hình Console và UI, giúp người dùng theo dõi tiến trình 62 đặc trưng.
   3. Giao diện xuất ra **Top 5 ảnh tương đồng nhất**, bao gồm Tên ảnh, Xếp hạng (Rank), và Độ đo Euclidean (Distance).
 
 ### 2. Đánh giá kết quả đạt được
 Nhóm xây dựng script `evaluate.py` dùng phương pháp *Leave-one-out* (chạy từng ảnh truy vấn toàn DB). Hệ thống hiện tại với 1769 ảnh đã đạt được:
 - Độ ổn định cao, nhận diện các cây khác biệt rõ rệt (như Dừa, Thông, Phong đỏ) rất tốt.
-- mAP@5 (Mean Average Precision) và Precision@5 cho thấy khả năng xếp hạng top 5 chính xác nhờ mô hình 37 chiều tối ưu thủ công không phụ thuộc Deep Learning.
+- mAP@5 (Mean Average Precision) và Precision@5 cho thấy khả năng xếp hạng top 5 chính xác nhờ mô hình 62 chiều thủ công không phụ thuộc Deep Learning.
 - Thời gian trích xuất và query K-NN cực nhanh (~vài mili-giây/ảnh) nhờ KD-Tree. Mọi yêu cầu của môn học đã được hoàn thiện.

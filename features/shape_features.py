@@ -1,24 +1,13 @@
 """
-shape_features.py  [v2 – Redesigned]
---------------------------------------
-Trích rút đặc trưng hình thái cây – phiên bản tối giản (7 chiều).
+shape_features.py
+-----------------
+Trích rút đặc trưng hình thái cây (12 chiều).
 
-Vector hình thái (7 chiều):
-    - aspect_ratio  : Tỷ lệ W/H bounding box → phân biệt cây cao thẳng vs cây bụi
-    - solidity      : Area / ConvexHullArea    → tán dày đặc vs tán thưa
-    - extent_ratio  : Area / BoundingBoxArea   → hình dạng tổng quát
-    - crown_ratio   : Tỷ lệ pixel nửa trên    → cây có tán cao hay tán thấp
-    - hu_0, hu_1, hu_2 : 3 Hu Moments đầu (log-scaled, bất biến tịnh tiến/tỷ lệ/xoay)
-
-Lý do thiết kế:
-    - Loại bỏ centroid_x_norm: cây luôn gần trung tâm ảnh → không discriminative.
-    - Loại bỏ centroid_y_norm: tương quan cao với crown_ratio (VIF > 5).
-    - Loại bỏ symmetry: chi phí tính toán cao, giá trị phân tán không ổn định.
-    - Loại bỏ area_ratio: phụ thuộc vào cách chụp ảnh (zoom), không phản ánh loài cây.
-    - Hu Moments: giữ hu_0..hu_2 (3 giá trị đầu ổn định nhất); hu_3..hu_6
-      thường rất nhỏ và nhạy cảm với nhiễu hơn.
-
-Tổng: 7 chiều.
+Vector hình thái (12 chiều):
+    - area_ratio, aspect_ratio, centroid_x_norm, centroid_y_norm
+    - crown_ratio, extent_ratio
+    - hu_0..hu_3: 4 Hu Moments đầu, log-scaled
+    - solidity, symmetry
 """
 
 import cv2
@@ -30,7 +19,7 @@ from features.mask_utils import create_tree_mask
 # ─────────────────────────────────────────────
 #  Hằng số cấu hình
 # ─────────────────────────────────────────────
-HU_COUNT = 3          # Số Hu Moments sử dụng (3 ổn định nhất trong 7)
+HU_COUNT = 4
 MIN_CONTOUR_AREA = 200
 
 
@@ -56,12 +45,23 @@ def extract_geometry_features(contour, mask: np.ndarray) -> dict:
     Returns:
         dict: {aspect_ratio, solidity, extent_ratio, crown_ratio}
     """
+    h_img, w_img = mask.shape[:2]
+
     # Bounding box
     _, _, bw, bh = cv2.boundingRect(contour)
     area = float(cv2.contourArea(contour))
+    area_ratio = area / float(h_img * w_img) if h_img > 0 and w_img > 0 else 0.0
     bbox_area = float(bw * bh)
     aspect_ratio = float(bw) / float(bh) if bh > 0 else 1.0
     extent_ratio = area / bbox_area if bbox_area > 0 else 0.0
+
+    moments = cv2.moments(contour)
+    if moments["m00"] != 0:
+        centroid_x_norm = float(moments["m10"] / moments["m00"]) / float(w_img)
+        centroid_y_norm = float(moments["m01"] / moments["m00"]) / float(h_img)
+    else:
+        centroid_x_norm = 0.5
+        centroid_y_norm = 0.5
 
     # Solidity
     hull = cv2.convexHull(contour)
@@ -76,7 +76,10 @@ def extract_geometry_features(contour, mask: np.ndarray) -> dict:
     crown_ratio = top_px / total_px if total_px > 0 else 0.5
 
     return {
+        "area_ratio": area_ratio,
         "aspect_ratio": aspect_ratio,
+        "centroid_x_norm": centroid_x_norm,
+        "centroid_y_norm": centroid_y_norm,
         "solidity": solidity,
         "extent_ratio": extent_ratio,
         "crown_ratio": crown_ratio,
@@ -110,10 +113,45 @@ def extract_hu_moments(contour) -> dict:
 
 def _empty_shape() -> dict:
     """Vector hình thái rỗng khi không tìm được contour."""
-    d = {"aspect_ratio": 1.0, "solidity": 0.0, "extent_ratio": 0.0, "crown_ratio": 0.5}
+    d = {
+        "area_ratio": 0.0,
+        "aspect_ratio": 1.0,
+        "centroid_x_norm": 0.5,
+        "centroid_y_norm": 0.5,
+        "crown_ratio": 0.5,
+        "extent_ratio": 0.0,
+        "solidity": 0.0,
+        "symmetry": 0.0,
+    }
     for i in range(HU_COUNT):
         d[f"hu_{i}"] = 0.0
     return d
+
+
+def extract_symmetry(mask: np.ndarray) -> float:
+    """
+    Tính đối xứng trái-phải của mask theo bounding box đối tượng.
+    Giá trị càng gần 1 nghĩa là cây càng đối xứng theo trục dọc.
+    """
+    ys, xs = np.where(mask == 255)
+    if len(xs) == 0:
+        return 0.0
+
+    x1, x2 = int(xs.min()), int(xs.max()) + 1
+    y1, y2 = int(ys.min()), int(ys.max()) + 1
+    crop = (mask[y1:y2, x1:x2] == 255).astype(np.uint8)
+    if crop.size == 0:
+        return 0.0
+
+    flipped = np.fliplr(crop)
+    common_w = min(crop.shape[1], flipped.shape[1])
+    crop = crop[:, :common_w]
+    flipped = flipped[:, :common_w]
+    union = np.logical_or(crop, flipped).sum()
+    if union == 0:
+        return 0.0
+    inter = np.logical_and(crop, flipped).sum()
+    return float(inter / union)
 
 
 # ─────────────────────────────────────────────
@@ -123,7 +161,7 @@ def _empty_shape() -> dict:
 def extract_shape_features(image_bgr: np.ndarray,
                            mask: Optional[np.ndarray] = None) -> dict:
     """
-    Trích rút toàn bộ đặc trưng hình thái cây (7 chiều).
+    Trích rút toàn bộ đặc trưng hình thái cây (12 chiều).
 
     Args:
         image_bgr: Ảnh BGR (H×W×3).
@@ -146,7 +184,8 @@ def extract_shape_features(image_bgr: np.ndarray,
 
     geom = extract_geometry_features(contour, mask)
     hu = extract_hu_moments(contour)
-    return {**geom, **hu}
+    symmetry = extract_symmetry(mask)
+    return {**geom, **hu, "symmetry": symmetry}
 
 
 # ─────────────────────────────────────────────
